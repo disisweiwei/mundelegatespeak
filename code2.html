@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MUN Delegate Counter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .page-transition {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .page-hidden {
+            opacity: 0;
+            transform: translateY(20px);
+            pointer-events: none;
+            position: absolute;
+            width: 100%;
+            height: 0;
+            overflow: hidden;
+        }
+        .page-visible {
+            opacity: 1;
+            transform: translateY(0);
+            position: static;
+            height: auto;
+            overflow: visible;
+        }
+        .points-input {
+            width: 60px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-3xl">
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <img src="./img/unga.jpg" 
+                 alt="MUN Delegate Counter banner showing diverse delegates in formal attire at a conference"
+                 class="w-full rounded-lg mb-4">
+            <h1 class="text-3xl font-bold text-blue-900">MUN Delegate Speech Counter</h1>
+            <p class="text-gray-600 mt-2">How Many Times the Delegates Speak</p>
+        </header>
+
+        <!-- Page 1 - Add Delegates -->
+        <div id="add-delegates-page" class="page-transition page-visible">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold text-blue-800 mb-4">Add Delegates</h2>
+                
+                <div class="mb-6">
+                    <div class="flex mb-4">
+                        <input type="text" id="delegate-name" placeholder="Enter delegate name" 
+                               class="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="add-delegate-btn" class="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition">
+                            Add Delegate
+                        </button>
+                    </div>
+                    
+                    <div id="delegate-list" class="border border-gray-200 rounded-md">
+                        <!-- Delegates will be added here -->
+                    </div>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button id="start-counting-btn" class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        Start Counting
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 2 - Counting View -->
+        <div id="counting-page" class="page-transition page-hidden">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-blue-800">Delegate Points</h2>
+                    <button id="edit-delegates-btn" class="text-blue-600 hover:text-blue-800 transition">
+                        Edit Delegates
+                    </button>
+                </div>
+                
+                <div id="points-grid" class="grid gap-4">
+                    <!-- Delegate points will be displayed here -->
+                </div>
+                
+                <div class="mt-6 flex justify-center">
+                    <button id="reset-points-btn" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 transition mr-4">
+                        Reset All Points
+                    </button>
+                    <button id="export-data-btn" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                        Export Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // State management
+            const state = {
+                delegates: []
+            };
+
+            // DOM elements
+            const addDelegatesPage = document.getElementById('add-delegates-page');
+            const countingPage = document.getElementById('counting-page');
+            const delegateNameInput = document.getElementById('delegate-name');
+            const addDelegateBtn = document.getElementById('add-delegate-btn');
+            const delegateList = document.getElementById('delegate-list');
+            const startCountingBtn = document.getElementById('start-counting-btn');
+            const editDelegatesBtn = document.getElementById('edit-delegates-btn');
+            const pointsGrid = document.getElementById('points-grid');
+            const resetPointsBtn = document.getElementById('reset-points-btn');
+            const exportDataBtn = document.getElementById('export-data-btn');
+
+            // Event listeners
+            addDelegateBtn.addEventListener('click', addDelegate);
+            delegateNameInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') addDelegate();
+            });
+            startCountingBtn.addEventListener('click', showCountingPage);
+            editDelegatesBtn.addEventListener('click', showAddDelegatesPage);
+            resetPointsBtn.addEventListener('click', resetAllPoints);
+            exportDataBtn.addEventListener('click', exportData);
+
+            // Functions
+            function addDelegate() {
+                const name = delegateNameInput.value.trim();
+                if (!name) return;
+                
+                // Check for duplicate names
+                if (state.delegates.some(delegate => delegate.name.toLowerCase() === name.toLowerCase())) {
+                    alert('A delegate with this name already exists!');
+                    return;
+                }
+                
+                // Add to state
+                state.delegates.push({
+                    name: name,
+                    points: 0
+                });
+                
+                // Add to UI
+                const delegateItem = document.createElement('div');
+                delegateItem.className = 'flex items-center justify-between p-3 border-b border-gray-200 last:border-b-0';
+                delegateItem.innerHTML = `
+                    <span>${name}</span>
+                    <button class="text-red-600 hover:text-red-800 transition remove-delegate" data-name="${name}">
+                        Remove
+                    </button>
+                `;
+                delegateList.appendChild(delegateItem);
+                
+                // Clear input
+                delegateNameInput.value = '';
+                
+                // Enable start button if at least one delegate exists
+                startCountingBtn.disabled = state.delegates.length === 0;
+                
+                // Add remove event listener
+                delegateItem.querySelector('.remove-delegate').addEventListener('click', function() {
+                    const nameToRemove = this.getAttribute('data-name');
+                    removeDelegate(nameToRemove);
+                });
+            }
+            
+            function removeDelegate(name) {
+                // Remove from state
+                state.delegates = state.delegates.filter(delegate => delegate.name !== name);
+                
+                // Remove from UI
+                const items = delegateList.querySelectorAll('.remove-delegate');
+                items.forEach(item => {
+                    if (item.getAttribute('data-name') === name) {
+                        item.parentElement.remove();
+                    }
+                });
+                
+                // Disable start button if no delegates left
+                startCountingBtn.disabled = state.delegates.length === 0;
+            }
+            
+            function showCountingPage() {
+                // Sort delegates alphabetically before rendering
+                state.delegates.sort((a, b) => a.name.localeCompare(b.name));
+                renderPointsGrid();
+                addDelegatesPage.classList.remove('page-visible');
+                addDelegatesPage.classList.add('page-hidden');
+                countingPage.classList.remove('page-hidden');
+                countingPage.classList.add('page-visible');
+            }
+            
+            function showAddDelegatesPage() {
+                countingPage.classList.remove('page-visible');
+                countingPage.classList.add('page-hidden');
+                addDelegatesPage.classList.remove('page-hidden');
+                addDelegatesPage.classList.add('page-visible');
+            }
+            
+            function renderPointsGrid() {
+                pointsGrid.innerHTML = '';
+                
+                state.delegates.sort((a, b) => a.name.localeCompare(b.name)).forEach(delegate => {
+                    const delegateCard = document.createElement('div');
+                    delegateCard.className = 'bg-gray-50 rounded-lg p-4 flex items-center justify-between';
+                    delegateCard.innerHTML = `
+                        <span class="font-medium">${delegate.name}</span>
+                        <div class="flex items-center">
+                            <button class="minus-btn bg-red-100 text-red-600 px-3 py-1 rounded-l-md hover:bg-red-200 transition" data-name="${delegate.name}">
+                                -
+                            </button>
+                            <input type="number" value="${delegate.points}" class="points-input bg-white border-t border-b border-gray-300 px-2 py-1" data-name="${delegate.name}">
+                            <button class="plus-btn bg-green-100 text-green-600 px-3 py-1 rounded-r-md hover:bg-green-200 transition" data-name="${delegate.name}">
+                                +
+                            </button>
+                        </div>
+                    `;
+                    pointsGrid.appendChild(delegateCard);
+                    
+                    // Add event listeners for buttons
+                    delegateCard.querySelector('.minus-btn').addEventListener('click', function() {
+                        updatePoints(this.getAttribute('data-name'), -1);
+                    });
+                    
+                    delegateCard.querySelector('.plus-btn').addEventListener('click', function() {
+                        updatePoints(this.getAttribute('data-name'), 1);
+                    });
+                    
+                    // Add event listener for direct input
+                    delegateCard.querySelector('.points-input').addEventListener('change', function() {
+                        const newPoints = parseInt(this.value);
+                        if (!isNaN(newPoints)) {
+                            const delegateName = this.getAttribute('data-name');
+                            const delegate = state.delegates.find(d => d.name === delegateName);
+                            if (delegate) {
+                                delegate.points = newPoints;
+                            }
+                        }
+                    });
+                });
+            }
+            
+            function updatePoints(name, change) {
+                const delegate = state.delegates.find(d => d.name === name);
+                if (delegate) {
+                    delegate.points += change;
+                    if (delegate.points < 0) delegate.points = 0;
+                    
+                    // Update UI
+                    const input = document.querySelector(`.points-input[data-name="${name}"]`);
+                    if (input) {
+                        input.value = delegate.points;
+                    }
+                }
+            }
+            
+            function resetAllPoints() {
+                if (confirm('Are you sure you want to reset all points to zero?')) {
+                    state.delegates.forEach(delegate => {
+                        delegate.points = 0;
+                    });
+                    renderPointsGrid();
+                }
+            }
+            
+            function exportData() {
+                const data = {
+                    delegates: state.delegates,
+                    timestamp: new Date().toISOString()
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `mun-delegates-${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        });
+    </script>
+</body>
+</html>
+
